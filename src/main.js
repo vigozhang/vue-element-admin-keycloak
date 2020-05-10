@@ -15,6 +15,7 @@ import store from './store'
 import router from './router'
 
 import './icons' // icon
+import Keycloak from 'keycloak-js'
 import './permission' // permission control
 import './utils/error-log' // error log
 
@@ -45,9 +46,45 @@ Object.keys(filters).forEach(key => {
 
 Vue.config.productionTip = false
 
-new Vue({
-  el: '#app',
-  router,
-  store,
-  render: h => h(App)
+// keycloak init options
+const initOptions = {
+  url: process.env.VUE_APP_KEYCLOAK_OPTIONS_URL,
+  realm: process.env.VUE_APP_KEYCLOAK_OPTIONS_REALM,
+  clientId: process.env.VUE_APP_KEYCLOAK_OPTIONS_CLIENTID,
+  onLoad: process.env.VUE_APP_KEYCLOAK_OPTIONS_ONLOAD
+}
+
+const keycloak = Keycloak(initOptions)
+
+keycloak.init({ onLoad: initOptions.onLoad }).then(async authenticated => {
+  if (!authenticated) {
+    window.location.reload()
+    return
+  } else {
+    Vue.prototype.$keycloak = keycloak
+    await store.dispatch('user/keycloakLogin', keycloak.token)
+    console.log('Authenticated', keycloak)
+  }
+
+  setInterval(() => {
+    keycloak.updateToken(70).then((refreshed) => {
+      if (refreshed) {
+        console.log('Token refreshed')
+      } else {
+        console.log('Token not refreshed, valid for ' +
+          Math.round(keycloak.tokenParsed.exp + keycloak.timeSkew - new Date().getTime() / 1000) + ' seconds')
+      }
+    }).catch(error => {
+      console.log('Failed to refresh token', error)
+    })
+  }, 60000)
+
+  new Vue({
+    el: '#app',
+    router,
+    store,
+    render: h => h(App)
+  })
+}).catch(error => {
+  console.log('Authenticated Failed', error)
 })

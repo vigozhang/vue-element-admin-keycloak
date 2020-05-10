@@ -1,6 +1,7 @@
 import { login, logout, getInfo } from '@/api/user'
 import { getToken, setToken, removeToken } from '@/utils/auth'
 import router, { resetRouter } from '@/router'
+import Vue from 'vue'
 
 const state = {
   token: getToken(),
@@ -124,6 +125,71 @@ const actions = {
       dispatch('tagsView/delAllViews', null, { root: true })
 
       resolve()
+    })
+  },
+
+  // keycloakLogin
+  keycloakLogin({ commit }, accessToken) {
+    return new Promise((resolve, reject) => {
+      commit('SET_TOKEN', accessToken)
+      setToken(accessToken)
+      resolve()
+    })
+  },
+
+  // get user info from keycloak
+  getKeycloakInfo({ commit, state }) {
+    return new Promise((resolve, reject) => {
+      if (!Vue.prototype.$keycloak) {
+        reject('keycloak not init')
+      }
+
+      if (!Vue.prototype.$keycloak.authenticated) {
+        reject('Verification failed, please Login again.')
+      }
+
+      const roles = Vue.prototype.$keycloak.realmAccess.roles
+      const name = Vue.prototype.$keycloak.idTokenParsed.preferred_username
+      const avatar = Vue.prototype.$keycloak.idTokenParsed.avatar
+      const introduction = Vue.prototype.$keycloak.idTokenParsed.introduction
+
+      // roles must be a non-empty array
+      if (!roles || roles.length <= 0) {
+        reject('getKeycloakInfo: roles must be a non-null array!')
+      }
+
+      // you can also use the method loadUserProfile() to get user attributes
+      // Vue.prototype.$keycloak.loadUserProfile().then(profile => {
+      //   let avatar = profile.attributes.avatar[0]
+      //   let introduction = profile.attributes.introduction[0]
+      // })
+
+      const data = {
+        roles,
+        name,
+        avatar,
+        introduction
+      }
+
+      commit('SET_ROLES', roles)
+      commit('SET_NAME', name)
+      commit('SET_AVATAR', avatar)
+      commit('SET_INTRODUCTION', introduction)
+      resolve(data)
+    })
+  },
+
+  // keycloakLogout
+  keycloakLogout({ commit, state }) {
+    return new Promise((resolve, reject) => {
+      Vue.prototype.$keycloak.logout().then(() => {
+        removeToken() // must remove  token  first
+        resetRouter()
+        commit('RESET_STATE')
+        resolve()
+      }).catch(error => {
+        reject(error)
+      })
     })
   }
 }
