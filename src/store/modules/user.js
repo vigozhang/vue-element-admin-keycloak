@@ -183,9 +183,11 @@ const actions = {
   keycloakLogout({ commit, state }) {
     return new Promise((resolve, reject) => {
       Vue.prototype.$keycloak.logout().then(() => {
-        removeToken() // must remove  token  first
+        commit('SET_TOKEN', '')
+        commit('SET_ROLES', [])
+        removeToken()
         resetRouter()
-        commit('RESET_STATE')
+
         resolve()
       }).catch(error => {
         reject(error)
